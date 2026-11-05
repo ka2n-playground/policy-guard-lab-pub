@@ -1,0 +1,46 @@
+name: bot
+on:
+  workflow_dispatch:
+    inputs:
+      op: {required: true, type: string}
+      branch: {required: false, type: string, default: ""}
+      file: {required: false, type: string, default: ""}
+      line: {required: false, type: string, default: "1"}
+      pr: {required: false, type: string, default: ""}
+      tag: {required: false, type: string, default: ""}
+run-name: "bot ${{ inputs.op }} ${{ inputs.branch }}${{ inputs.pr }} ${{ inputs.tag }}"
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          OP: ${{ inputs.op }}
+          BRANCH: ${{ inputs.branch }}
+          FILE: ${{ inputs.file }}
+          LINE: ${{ inputs.line }}
+          PR: ${{ inputs.pr }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          case "$OP" in
+            open)
+              git switch -c "$BRANCH"
+              sed -i "${LINE}s/.*/changed-by-$BRANCH/" "$FILE"
+              git commit -am "change $FILE in $BRANCH"
+              git push origin "$BRANCH"
+              gh pr create --head "$BRANCH" --base main --title "$BRANCH" --body "lab" ;;
+            push)
+              git switch "$BRANCH"
+              sed -i "${LINE}s/.*/pushed-again-$BRANCH/" "$FILE"
+              git commit -am "push again $FILE in $BRANCH"
+              git push origin "$BRANCH" ;;
+            update)
+              gh api -X PUT "repos/$GITHUB_REPOSITORY/pulls/$PR/update-branch" ;;
+            *) echo "unknown op"; exit 1 ;;
+          esac
